@@ -4,5 +4,5 @@
 pip install -r requirements.txt
 
 ## Запуск
-export BOT_TOKEN="ВАШ_ТОКЕН"
+export BOT_TOKEN="8541958280:AAGFCQLEdWvAeLeW55sbHdxvBecGeHNWyyY"
 python bot.py

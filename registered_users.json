@@ -1,4 +1,5 @@
-registered_users = {
-    "5km": [],
-    "10km": []
+{
+  "5km": [],
+  "10km": [],
+  "waiting": []
 }

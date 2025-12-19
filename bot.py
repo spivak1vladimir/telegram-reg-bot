@@ -103,12 +103,11 @@ async def choose_distance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         await query.edit_message_text(
-    "Основные места заняты.\n"
-    "Ты добавлен в *лист ожидания*.\n"
-    "Если кто-то отменит участие — ты попадёшь в основной список!",
-    parse_mode="Markdown"
-)
-
+            "Основные места заняты.\n"
+            "Ты добавлен в *лист ожидания*.\n"
+            "Если кто-то отменит участие — ты попадёшь в основной список!",
+            parse_mode="Markdown"
+        )
         return
 
     # Добавляем в основную группу

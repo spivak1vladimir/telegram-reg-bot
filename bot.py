@@ -1,4 +1,3 @@
-import os
 import json
 import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -7,7 +6,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Cont
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = "8541958280:AAHHq0zmw0J1bRnxj8XI3wS9PDa3SGkYzLg"
 ADMIN_CHAT_ID = 194614510
 MAX_SLOTS = 20
 DATA_FILE = "registered_users.json"
@@ -18,8 +17,8 @@ if os.path.exists(DATA_FILE):
         registered_users = json.load(f)
 else:
     registered_users = {
-        "8km": [],
-        "15km": [],
+        "5km": [],
+        "10km": [],
         "waiting": []   # Лист ожидания
     }
 
@@ -36,7 +35,10 @@ async def info(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Если согласен — нажми кнопку ниже."
     )
     keyboard = [[InlineKeyboardButton("Согласен, выбрать дистанцию", callback_data="agree")]]
-    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    await update.effective_message.reply_text(
+        text,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
 # Меню выбора дистанции
 async def choose_distance_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -44,7 +46,7 @@ async def choose_distance_menu(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
     
     text = (
-        "Выбегаем из кафе «Делюсь Душой» 14 декабря, в воскресенье.\n"
+        "Выбегаем из кафе «Onsightotdoor» 21 декабря, в воскресенье.\n"
         "Сбор в 10:30, старт в 11:00.\n"
         "Бежим двумя группами.\n\n"
         "Выбери свою дистанцию:"
@@ -52,12 +54,12 @@ async def choose_distance_menu(update: Update, context: ContextTypes.DEFAULT_TYP
     
     keyboard = [
         [
-            InlineKeyboardButton("8 км — темп 7:00", callback_data="dist_8km"),
-            InlineKeyboardButton("Маршрут 8 км", url="https://yandex.ru/maps/-/CLsPzO7g")
+            InlineKeyboardButton("5 км — темп 7:30", callback_data="dist_5km"),
+            InlineKeyboardButton("Маршрут 5 км", url="https://yandex.ru/maps/-/CLDaANz3")
         ],
         [
-            InlineKeyboardButton("10 + 5 км — темп 6:00", callback_data="dist_15km"),
-            InlineKeyboardButton("Маршрут 15 км", url="https://yandex.ru/maps/-/CLsTM2~3")
+            InlineKeyboardButton("10 км — темп 7:00 - 6:30", callback_data="dist_10km"),
+            InlineKeyboardButton("Маршрут 10 км", url="https://yandex.ru/maps/-/CLDaeU~S")
         ]
     ]
     
@@ -71,8 +73,8 @@ async def choose_distance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(user.id)
 
     distances = {
-        "dist_8km": "8km",
-        "dist_15km": "15km"
+        "dist_5km": "5km",
+        "dist_10km": "10km"
     }
 
     dist_key = distances.get(query.data)
@@ -81,7 +83,7 @@ async def choose_distance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # Проверяем, есть ли места
-    total_slots = len(registered_users["8km"]) + len(registered_users["15km"])
+    total_slots = len(registered_users["5km"]) + len(registered_users["10km"])
 
     if total_slots >= MAX_SLOTS:
         # Лист ожидания
@@ -100,10 +102,12 @@ async def choose_distance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         await query.edit_message_text(
-            "Основные места заняты.\n"
-            "Ты добавлен в *лист ожидания*.\n"
-            "Если кто-то отменит участие — ты попадёшь в основной список!"
-        )
+    "Основные места заняты.\n"
+    "Ты добавлен в *лист ожидания*.\n"
+    "Если кто-то отменит участие — ты попадёшь в основной список!",
+    parse_mode="Markdown"
+)
+
         return
 
     # Добавляем в основную группу
@@ -172,7 +176,7 @@ def main():
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", info))
-    app.add_handler(CallbackQueryHandler(choose_distance_menu, pattern="agree"))
+    app.add_handler(CallbackQueryHandler(choose_distance_menu, pattern="^agree$"))
     app.add_handler(CallbackQueryHandler(choose_distance, pattern="^dist_"))
     app.add_handler(CallbackQueryHandler(cancel_registration, pattern="^cancel_"))
 

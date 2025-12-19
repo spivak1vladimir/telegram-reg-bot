@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -19,7 +20,7 @@ else:
     registered_users = {
         "5km": [],
         "10km": [],
-        "waiting": []   # Лист ожидания
+        "waiting": []
     }
 
 # Приветствие и информация об условиях участия
@@ -170,9 +171,6 @@ async def cancel_registration(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 # Основной запуск бота
 def main():
-    if TOKEN is None:
-        raise ValueError("Установи переменную окружения BOT_TOKEN")
-
     app = Application.builder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", info))

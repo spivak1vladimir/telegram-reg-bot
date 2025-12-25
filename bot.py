@@ -1,8 +1,15 @@
 import os
 import json
 import logging
+from datetime import datetime, timedelta
+
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    CallbackQueryHandler,
+    ContextTypes,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -12,170 +19,225 @@ ADMIN_CHAT_ID = 194614510
 MAX_SLOTS = 20
 DATA_FILE = "registered_users.json"
 
-# Загружаем зарегистрированных пользователей
+RUN_DATETIME = datetime(2025, 12, 28, 11, 0)
+
+RUN_DATE_TEXT = "28.12.25"
+RUN_TITLE_TEXT = "Бежим под Новый год"
+
+START_POINT = "Кафе «Человек и пароход»"
+START_MAP_LINK_6KM = "https://yandex.ru/maps/-/CLHfEEpb"
+START_MAP_LINK_12KM = "https://yandex.ru/maps/-/CLHfYV2G"
+
+# ---------- ЗАГРУЗКА ДАННЫХ ----------
 if os.path.exists(DATA_FILE):
     with open(DATA_FILE, "r", encoding="utf-8") as f:
         registered_users = json.load(f)
 else:
     registered_users = {
-        "5km": [],
-        "10km": [],
+        "6km": [],
+        "12km": [],
         "waiting": []
     }
 
-# Приветствие и информация об условиях участия
-async def info(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = (
-        "Рад, что ты присоединился к воскресной пробежке с Spivak Run!\n"
-        "Мы стараемся делать каждую пробежку ещё лучше.\n\n"
-        "Пожалуйста, ознакомься с условиями участия:\n\n"
-        "• Я принимаю личную ответственность за свою жизнь и здоровье.\n"
-        "• Я принимаю личную ответственность за сохранность своих вещей.\n"
-        "• Я предоставляю согласие на обработку своих персональных данных.\n"
-        "• Я даю согласие на фото и видео съёмку с публикацией материалов в соцсетях.\n\n"
-        "Если согласен — нажми кнопку ниже."
-    )
-    keyboard = [[InlineKeyboardButton("Согласен, выбрать дистанцию", callback_data="agree")]]
-    await update.effective_message.reply_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(keyboard)
+# ---------- ВСПОМОГАТЕЛЬНЫЕ ----------
+def save_data():
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(registered_users, f, ensure_ascii=False, indent=2)
+
+def format_users(dist):
+    if not registered_users[dist]:
+        return "— пока нет участников"
+    return "\n".join(
+        f"{i + 1}. {u['name']}" for i, u in enumerate(registered_users[dist])
     )
 
-# Меню выбора дистанции
+def all_participants():
+    return registered_users["6km"] + registered_users["12km"]
+
+# ---------- /START ----------
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        f"{RUN_DATE_TEXT}\n"
+        f"{RUN_TITLE_TEXT}\n\n"
+        "Рад, что ты присоединился к воскресной пробежке с Spivak Run.\n\n"
+        "Условия участия:\n"
+        "Я принимаю личную ответственность за свою жизнь и здоровье.\n"
+        "Я принимаю ответственность за сохранность своих вещей.\n"
+        "Я даю согласие на обработку персональных данных.\n"
+        "Я даю согласие на фото и видео съемку с публикацией материалов.\n\n"
+        "Если согласен — нажми кнопку ниже."
+    )
+    keyboard = [
+        [InlineKeyboardButton("Согласен, выбрать дистанцию", callback_data="agree")]
+    ]
+    await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+# ---------- МЕНЮ ДИСТАНЦИЙ ----------
 async def choose_distance_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    
+
     text = (
-        "Выбегаем из кафе «Onsightotdoor» 21 декабря, в воскресенье.\n"
-        "Сбор в 10:30, старт в 11:00.\n"
-        "Бежим двумя группами.\n\n"
-        "Выбери свою дистанцию:"
+        f"{RUN_DATE_TEXT}\n"
+        f"{RUN_TITLE_TEXT}\n\n"
+        f"Старт: {START_POINT}\n"
+        "Сбор: 10:30\n"
+        "Старт: 11:00\n\n"
+        "Дистанции:\n"
+        "6 км — темп 7:00\n"
+        "12 км — 6 км + дополнительно ещё 6 км в темпе 6:30\n\n"
+        "Выбери дистанцию:"
     )
-    
+
     keyboard = [
         [
-            InlineKeyboardButton("5 км — темп 7:30", callback_data="dist_5km"),
-            InlineKeyboardButton("Маршрут 5 км", url="https://yandex.ru/maps/-/CLDaANz3")
+            InlineKeyboardButton("6 км — темп 7:00", callback_data="dist_6km"),
+            InlineKeyboardButton("Маршрут 6 км", url=START_MAP_LINK_6KM)
         ],
         [
-            InlineKeyboardButton("10 км — темп 7:00 - 6:30", callback_data="dist_10km"),
-            InlineKeyboardButton("Маршрут 10 км", url="https://yandex.ru/maps/-/CLDaeU~S")
+            InlineKeyboardButton("12 км — 6 + 6 км (6:30)", callback_data="dist_12km"),
+            InlineKeyboardButton("Маршрут 12 км", url=START_MAP_LINK_12KM)
         ]
     ]
-    
+
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
 
-# Регистрация на дистанцию
+# ---------- РЕГИСТРАЦИЯ ----------
 async def choose_distance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
     user = query.from_user
     user_id = str(user.id)
+    dist_key = "6km" if query.data == "dist_6km" else "12km"
 
-    distances = {
-        "dist_5km": "5km",
-        "dist_10km": "10km"
+    user_data = {
+        "id": user_id,
+        "name": user.first_name,
+        "username": user.username or ""
     }
 
-    dist_key = distances.get(query.data)
-    if dist_key is None:
-        await query.edit_message_text("Ошибка: неизвестная дистанция.")
+    if any(u["id"] == user_id for u in all_participants()):
+        await query.edit_message_text("Ты уже зарегистрирован.")
         return
 
-    # Проверяем, есть ли места
-    total_slots = len(registered_users["5km"]) + len(registered_users["10km"])
-
-    if total_slots >= MAX_SLOTS:
-        # Лист ожидания
-        registered_users["waiting"].append({"id": user_id, "distance": dist_key})
-        
-        with open(DATA_FILE, "w", encoding="utf-8") as f:
-            json.dump(registered_users, f, ensure_ascii=False, indent=2)
+    if len(all_participants()) >= MAX_SLOTS:
+        registered_users["waiting"].append({**user_data, "distance": dist_key})
+        save_data()
 
         await context.bot.send_message(
-            chat_id=ADMIN_CHAT_ID,
-            text=(
-                f"Новый участник добавлен в лист ожидания!\n"
-                f"Имя: {user.first_name}\nUsername: @{user.username}\n"
-                f"ID: {user_id}\nВыбранная дистанция: {dist_key}"
-            )
+            ADMIN_CHAT_ID,
+            f"Добавлен в лист ожидания\n"
+            f"Имя: {user.first_name}\n"
+            f"Username: @{user.username}\n"
+            f"Дистанция: {dist_key}"
         )
 
-        await query.edit_message_text(
-            "Основные места заняты.\n"
-            "Ты добавлен в *лист ожидания*.\n"
-            "Если кто-то отменит участие — ты попадёшь в основной список!",
-            parse_mode="Markdown"
-        )
+        await query.edit_message_text("Основные места заняты. Ты в листе ожидания.")
         return
 
-    # Добавляем в основную группу
-    if user_id in registered_users[dist_key]:
-        await query.edit_message_text("Ты уже записан на эту дистанцию.")
-        return
-
-    registered_users[dist_key].append(user_id)
-
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(registered_users, f, ensure_ascii=False, indent=2)
+    registered_users[dist_key].append(user_data)
+    save_data()
 
     await context.bot.send_message(
-        chat_id=ADMIN_CHAT_ID,
-        text=(
-            f"Новый участник!\nИмя: {user.first_name}\nUsername: @{user.username}\n"
-            f"ID: {user_id}\nДистанция: {dist_key}"
-        )
+        ADMIN_CHAT_ID,
+        f"Новый участник\n"
+        f"Имя: {user.first_name}\n"
+        f"Username: @{user.username}\n"
+        f"ID: {user_id}\n"
+        f"Дистанция: {dist_key}"
     )
 
-    keyboard = [[InlineKeyboardButton("Отменить запись", callback_data=f"cancel_{dist_key}")]]
+    keyboard = [
+        [InlineKeyboardButton("Отменить запись", callback_data=f"cancel_{dist_key}")]
+    ]
+
     await query.edit_message_text(
-        f"Ты записан на дистанцию: {dist_key}",
+        f"Ты зарегистрирован на {dist_key}\n\n"
+        f"Участники:\n{format_users(dist_key)}",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
-# Отмена регистрации
+# ---------- ОТМЕНА ----------
 async def cancel_registration(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    user_id = str(query.from_user.id)
+
+    user = query.from_user
+    user_id = str(user.id)
     dist_key = query.data.split("_")[1]
 
-    if user_id in registered_users.get(dist_key, []):
-        registered_users[dist_key].remove(user_id)
+    for u in registered_users[dist_key]:
+        if u["id"] == user_id:
+            registered_users[dist_key].remove(u)
 
-        # При отмене — переводим первого из листа ожидания в основной список
-        if registered_users["waiting"]:
-            next_user = registered_users["waiting"].pop(0)
-            registered_users[next_user["distance"]].append(next_user["id"])
-
-            # Уведомляем админа
             await context.bot.send_message(
-                chat_id=ADMIN_CHAT_ID,
-                text=(
-                    f"Участник из листа ожидания перемещён в основной список!\n"
-                    f"ID: {next_user['id']}\n"
-                    f"Дистанция: {next_user['distance']}"
-                )
+                ADMIN_CHAT_ID,
+                f"Участник отменил регистрацию\n"
+                f"Имя: {u['name']}\n"
+                f"Username: @{u['username']}\n"
+                f"ID: {u['id']}\n"
+                f"Дистанция: {dist_key}"
             )
+            break
 
-    else:
-        await query.edit_message_text("Ты не был записан на эту дистанцию.")
-        return
+    save_data()
+    await query.edit_message_text("Регистрация отменена.")
 
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(registered_users, f, ensure_ascii=False, indent=2)
+# ---------- /INFO ----------
+async def info(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        f"{RUN_DATE_TEXT}\n"
+        f"{RUN_TITLE_TEXT}\n\n"
+        f"Старт: {START_POINT}\n"
+        "Сбор: 10:30\n"
+        "Старт: 11:00\n\n"
+        f"Маршрут 6 км: {START_MAP_LINK_6KM}\n"
+        f"Маршрут 12 км: {START_MAP_LINK_12KM}\n\n"
+        f"6 км ({len(registered_users['6km'])} чел):\n"
+        f"{format_users('6km')}\n\n"
+        f"12 км ({len(registered_users['12km'])} чел):\n"
+        f"{format_users('12km')}"
+    )
+    await update.message.reply_text(text)
 
-    await query.edit_message_text(f"Ты отменил запись на дистанцию: {dist_key}")
+# ---------- НАПОМИНАНИЕ ЗА 24 ЧАСА ----------
+async def send_reminder(context: ContextTypes.DEFAULT_TYPE):
+    text = (
+        f"{RUN_DATE_TEXT}\n"
+        f"{RUN_TITLE_TEXT}\n\n"
+        f"Завтра пробежка\n\n"
+        f"Старт: {START_POINT}\n"
+        "Сбор: 10:30\n"
+        "Старт: 11:00\n\n"
+        f"Маршрут 6 км: {START_MAP_LINK_6KM}\n"
+        f"Маршрут 12 км: {START_MAP_LINK_12KM}"
+    )
 
-# Основной запуск бота
+    for u in all_participants():
+        try:
+            await context.bot.send_message(chat_id=int(u["id"]), text=text)
+        except Exception:
+            pass
+
+    await context.bot.send_message(
+        ADMIN_CHAT_ID,
+        f"Напоминание отправлено\n"
+        f"Всего участников: {len(all_participants())}"
+    )
+
+# ---------- ЗАПУСК ----------
 def main():
     app = Application.builder().token(TOKEN).build()
 
-    app.add_handler(CommandHandler("start", info))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("info", info))
     app.add_handler(CallbackQueryHandler(choose_distance_menu, pattern="^agree$"))
     app.add_handler(CallbackQueryHandler(choose_distance, pattern="^dist_"))
     app.add_handler(CallbackQueryHandler(cancel_registration, pattern="^cancel_"))
+
+    reminder_time = RUN_DATETIME - timedelta(hours=24)
+    app.job_queue.run_once(send_reminder, when=reminder_time)
 
     logger.info("Бот запущен")
     app.run_polling()
